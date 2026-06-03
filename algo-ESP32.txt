@@ -1,0 +1,66 @@
+#include <iostream>
+/*Mai Tony 01/06/2026 */
+using namespace std;
+void main()
+
+Lire les données du GPS (Heure, Nombre de Satellites, Connexion)
+Lire le niveau de la Batterie (%) // affichage sur l'écran
+
+SI Batterie < 20 Alors
+        AFFICHER en clignotant "ALERTE : BATTERIE FAIBLE !" // Alerte l'état de la batterie
+    FIN SI
+
+    SI le bouton est enfoncé Alors // Gestion du bouton poussoir
+        SI BoutonPresse == FAUX Alors
+            TempsDebutAppuiBouton = TempsActuel()
+            BoutonPresse = VRAI
+        FIN SI
+    SINON
+        BoutonPresse = FAUX
+    FIN SI
+
+    SELON EtatActuel FAIRE :
+
+        CAS NORMAL :
+            Éteindre le Buzzer
+            Calculer l'accélération reçue (Capteur)
+            
+            SI l'accélération dépasse le seuil de choc (Chute) Alors
+                EtatActuel = PRE_ALERTE
+                TempsDernierMouvement = TempsActuel() // lance le chrono des 60s
+            FIN SI
+            Fin Cas
+
+	CAS PRE_ALERTE :
+            Calculer les micro-mouvements (Capteur)
+            
+            SI un mouvement est détecté Alors
+                                EtatActuel = NORMAL // annule tout
+            
+            SINON SI (TempsActuel() - TempsDernierMouvement) >= 60000 millisecondes //delai des 60s dépassé
+	    Alors
+                
+                EtatActuel = SOS
+                TempsDernierSOS = 0 //lance un premier SOS
+            FIN SI
+            Fin Cas
+
+        CAS SOS :
+            //Envoie des bip toute les 5s
+            SI (TempsActuel() - TempsDernierSOS) >= 5000 millisecondes Alors
+                TempsDernierSOS = TempsActuel()
+                
+                ENVOYER le message SOS avec les coordonnées GPS
+                ACTIVER le Buzzer à 90dB (Bip sonore de 1 seconde)
+            FIN SI
+	    // arrete si maintien bouton pendant 3s
+            SI BoutonPresse == VRAI ET (TempsActuel() - TempsDebutAppuiBouton) >= 3000 			millisecondes Alors
+                Éteindre le Buzzer
+                EtatActuel = NORMAL
+                TempsDernierMouvement = TempsActuel()  // reset      
+	    FIN SI
+            Fin Cas
+
+    FIN SELON
+
+FIN RÉPÉTER
