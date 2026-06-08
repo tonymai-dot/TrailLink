@@ -1,0 +1,46 @@
+// TrailLink_Main.ino
+#include "Gps.h"
+#include "Affichage.h"
+
+// Variable pour gérer la fréquence d'affichage (1 fois par seconde)
+unsigned long tempsDernierAffichage = 0;
+const unsigned long INTERVALLE_AFFICHAGE = 1000; 
+
+void setup() {
+  // Communication PC
+  Serial.begin(115200);
+  
+  // Initialisation de nos deux modules
+  initialiserGps();
+  initialiserAffichage();
+  
+  Serial.println("Systeme TrailLink initialise !");
+}
+
+void loop() {
+  // 1. On actualise en continu le flux GPS
+  mettreAJourGps();
+
+  // 2. On rafraîchit l'écran de la LilyGo à intervalle régulier (sans delay bloquant)
+  if (millis() - tempsDernierAffichage >= INTERVALLE_AFFICHAGE) {
+    tempsDernierAffichage = millis();
+    
+    // Récupération des infos provenant du GPS
+    DonneesGps infosGps = obtenirDonneesGps();
+    
+    // Préparation du colis de données pour l'écran
+    DonneesAffichage infosEcran;
+    infosEcran.nbSatellites = infosGps.nbSatellites;
+    infosEcran.heure = infosGps.heure;
+    infosEcran.estConnecteReseau = infosGps.aUnSignalValide;
+    
+    // Lecture fictive de la batterie pour le test (Exemple: 88%)
+    infosEcran.percentBatterie = 88.3;
+    
+    // État de l'appareil (Passe-le à AFF_ETAT_PRE_ALERTE ou AFF_ETAT_SOS pour tester tes écrans !)
+    infosEcran.etatLappareil = AFF_ETAT_NORMAL; 
+    
+    // Envoi des données à l'écran
+    rafraichirEcran(infosEcran);
+  }
+}
