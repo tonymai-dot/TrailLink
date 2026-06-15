@@ -19,4 +19,5 @@ bool initialiserAffichage();
 void rafraichirEcran(const DonneesAffichage& infos);
 void mettreEcranEnVeille();
 
+
 #endif // AFFICHAGE_H

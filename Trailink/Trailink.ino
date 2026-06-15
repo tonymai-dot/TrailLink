@@ -1,6 +1,7 @@
     #include "Affichage.h"
 #include "Gps.h"
 #include <sys/time.h>
+/*Mai Tony*/
 
 DonneesAffichage mesInfos;
 unsigned long dernierAffichage = 0;
@@ -14,7 +15,7 @@ void setup() {
     initialiserGps();
 
     // Configuration par défaut de l'appareil
-    mesInfos.percentBatterie = 88.0; // À lier plus tard au PMU
+    mesInfos.percentBatterie = 88.0; 
     mesInfos.estConnecteReseau = true;
     mesInfos.etatLappareil = AFF_ETAT_NORMAL;
 }

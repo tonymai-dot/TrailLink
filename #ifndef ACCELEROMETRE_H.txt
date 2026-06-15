@@ -1,0 +1,30 @@
+#ifndef ACCELEROMETRE_H
+#define ACCELEROMETRE_H
+
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+
+// On crée l'instance globale pour manipuler le capteur
+inline Adafruit_MPU6050 mpu;
+
+/**
+ * @brief Initialise le capteur MPU6050 sur le bus I2C existant.
+ * @return true si le capteur est détecté et configuré, false sinon.
+ */
+inline bool initialiserAccelerometre() {
+    // Le bus Wire a déjà été lancé par l'écran, le MPU6050 s'y connecte automatiquement
+    if (!mpu.begin()) {
+        Serial.println("Erreur : Impossible de trouver le capteur MPU6050 !");
+        return false;
+    }
+    
+    // Configuration des paliers de sensibilité du capteur
+    mpu.setAccelerometerRange(MPU6050_RANGE_8_G); // Permet d'encaisser des chocs jusqu'à 8G
+    mpu.setGyroRange(MPU6050_RANGE_500_DEG);     // Sensibilité de la rotation
+    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);   // Filtre anti-vibrations (évite les faux positifs en courant)
+
+    Serial.println("Capteur MPU6050 (Accelerometre) initialise avec succes.");
+    return true;
+}
