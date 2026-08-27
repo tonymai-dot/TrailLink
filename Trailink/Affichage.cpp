@@ -2,54 +2,95 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-
-#define XPOWERS_CHIP_AXP2101
 #include <XPowersLib.h>
 
-#define PIN_I2C_SDA     21
-#define PIN_I2C_SCL     22
-#define LARGEUR_ECRAN   128
-#define HAUTEUR_ECRAN   64
-#define ADRESSE_OLED    0x3C
-#include <TinyGPS++.h>
-
-TinyGPSPlus gps;
-// Supposons que ton flux GPS arrive sur Serial1 (broches de la T-Beam)
-
-String obtenirHeureExacte() {
-    if (gps.time.isValid()) {
-        int heureLocale = gps.time.hour() + 2; // +2 pour l'heure d'été en France (2026)
-        if (heureLocale >= 24) heureLocale -= 24;
-
-        String h = (heureLocale < 10) ? "0" + String(heureLocale) : String(heureLocale);
-        String m = (gps.time.minute() < 10) ? "0" + String(gps.time.minute()) : String(gps.time.minute());
-        
-        return h + ":" + m; // Renvoie par exemple "14:35"
-    }
-    return "--:--"; // Si le GPS n'a pas encore de signal
+namespace {
+constexpr uint8_t PIN_I2C_SDA = 21;
+constexpr uint8_t PIN_I2C_SCL = 22;
+constexpr uint8_t LARGEUR_ECRAN = 128;
+constexpr uint8_t HAUTEUR_ECRAN = 64;
+constexpr uint8_t ADRESSE_OLED = 0x3C;
 }
-XPowersPMU PMU;
+
+XPowersLibInterface *PMU = nullptr;
 Adafruit_SSD1306 ecran(LARGEUR_ECRAN, HAUTEUR_ECRAN, &Wire, -1);
+
+static bool initialiserPmu() {
+    // T-Beam V1.2 : AXP2101.
+    PMU = new XPowersAXP2101(Wire, PIN_I2C_SDA, PIN_I2C_SCL);
+    if (PMU->init()) {
+        Serial.println(F("[PMU] AXP2101 detecte."));
+
+        // Affectation officielle T-Beam V1.2 :
+        // ALDO2 = radio, ALDO3 = GPS.
+        // La radio n'est pas encore utilisee par ce sketch : on la coupe
+        // pour economiser la batterie et on alimente uniquement le GPS.
+        PMU->disablePowerOutput(XPOWERS_ALDO2);
+        PMU->setPowerChannelVoltage(XPOWERS_ALDO3, 3300);
+        PMU->enablePowerOutput(XPOWERS_ALDO3);
+        PMU->enableBattDetection();
+        PMU->enableBattVoltageMeasure();
+        return true;
+    }
+
+    delete PMU;
+
+    // T-Beam V1.1 : AXP192.
+    PMU = new XPowersAXP192(Wire, PIN_I2C_SDA, PIN_I2C_SCL);
+    if (PMU->init()) {
+        Serial.println(F("[PMU] AXP192 detecte."));
+
+        // Affectation officielle T-Beam V1.1 :
+        // DCDC1 = ESP32/OLED, LDO2 = radio, LDO3 = GPS.
+        PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
+        PMU->enablePowerOutput(XPOWERS_DCDC1);
+        PMU->disablePowerOutput(XPOWERS_LDO2);
+        PMU->setPowerChannelVoltage(XPOWERS_LDO3, 3300);
+        PMU->enablePowerOutput(XPOWERS_LDO3);
+        PMU->enableBattDetection();
+        PMU->enableBattVoltageMeasure();
+        return true;
+    }
+
+    delete PMU;
+    PMU = nullptr;
+    Serial.println(F("[ERREUR] Aucun PMU AXP192/AXP2101 detecte."));
+    return false;
+}
 
 bool initialiserAffichage() {
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
 
-    if (!PMU.begin(Wire, AXP2101_SLAVE_ADDRESS, PIN_I2C_SDA, PIN_I2C_SCL)) {
-        return false;
+    if (!initialiserPmu()) {
+        Serial.println(F("[AVERTISSEMENT] Essai de l'OLED sans configuration PMU."));
     }
 
-    PMU.setALDO2Voltage(3300); 
-    PMU.enableALDO2();
-    PMU.setBLDO1Voltage(3300); 
-    PMU.enableBLDO1();
+    delay(200);
 
     if (!ecran.begin(SSD1306_SWITCHCAPVCC, ADRESSE_OLED)) {
+        Serial.println(F("[ERREUR] Ecran OLED introuvable a l'adresse 0x3C."));
         return false;
     }
 
     ecran.clearDisplay();
+    ecran.setTextColor(SSD1306_WHITE);
+    ecran.setTextSize(1);
+    ecran.setCursor(18, 20);
+    ecran.println("TrailLink demarre");
+    ecran.setCursor(22, 36);
+    ecran.println("Recherche GPS...");
     ecran.display();
+    Serial.println(F("[OLED] Ecran initialise avec succes."));
     return true;
+}
+
+int obtenirPourcentageBatterie() {
+    if (PMU == nullptr || !PMU->isBatteryConnect()) {
+        return -1;
+    }
+
+    const int pourcentage = PMU->getBatteryPercent();
+    return (pourcentage >= 0 && pourcentage <= 100) ? pourcentage : -1;
 }
 
 void rafraichirEcran(const DonneesAffichage& infos) {
@@ -64,7 +105,7 @@ void rafraichirEcran(const DonneesAffichage& infos) {
         ecran.setCursor(10, 45);
         ecran.print("ALERTE EN COURS...");
         ecran.display();
-        return; 
+        return;
     }
 
     if (infos.etatLappareil == AFF_ETAT_PRE_ALERTE) {
@@ -80,18 +121,24 @@ void rafraichirEcran(const DonneesAffichage& infos) {
 
     ecran.setTextSize(1);
     ecran.setCursor(0, 0);
-    ecran.print(infos.heure); 
+    ecran.print(infos.heure);
     ecran.setCursor(80, 0);
-    ecran.print(infos.estConnecteReseau ? "LORA: OK" : "LORA: NO");
+    ecran.print(infos.gpsValide ? F("GPS: OK") : F("GPS: NO"));
     ecran.drawLine(0, 11, 128, 11, SSD1306_WHITE);
 
     ecran.setCursor(0, 18);
-    ecran.print("Satellites : "); ecran.print(infos.nbSatellites);
+    ecran.print("Satellites : ");
+    ecran.print(infos.nbSatellites);
     ecran.setCursor(0, 34);
-    ecran.print("Batterie   : "); ecran.print((int)infos.percentBatterie); ecran.print("%");
+    ecran.print(F("Batterie   : "));
+    if (infos.percentBatterie >= 0) {
+        ecran.print(infos.percentBatterie);
+        ecran.print('%');
+    } else {
+        ecran.print(F("--"));
+    }
     ecran.setCursor(0, 52);
     ecran.print("Statut     : Securise");
-
     ecran.display();
 }
 

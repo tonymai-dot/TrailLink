@@ -6,16 +6,17 @@
 #include <TinyGPS++.h>
 
 // --- CONFIGURATION MATÉRIELLE DU GPS (T-BEAM AXP2101) ---
-#define PIN_GPS_RX 34
-#define PIN_GPS_TX 12
-#define GPS_BAUDRATE 9600 // Vitesse standard des modules Neo-6M/M8N
+constexpr uint8_t PIN_GPS_RX = 34;
+constexpr uint8_t PIN_GPS_TX = 12;
+constexpr uint32_t GPS_BAUDRATE = 9600;
 
 // Structure pour exporter proprement les données lues vers le Main
 struct DonneesGps {
-    int nbSatellites;
-    int heure;
-    int minute;
+    uint8_t nbSatellites;
+    uint8_t heure;
+    uint8_t minute;
     bool aSignalValide;
+    unsigned long caracteresRecus;
 };
 
 // On crée les instances globales en "inline" pour éviter les erreurs de doublons
@@ -29,7 +30,7 @@ inline HardwareSerial SerialGPS(1);
 inline void initialiserGps() {
     // Initialise le port série du GPS avec les bonnes broches de la T-Beam
     SerialGPS.begin(GPS_BAUDRATE, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
-    Serial.println("Liaison materielle avec le GPS initialisee.");
+    Serial.println(F("[GPS] Liaison serie initialisee sur RX=34, TX=12, 9600 bauds."));
 }
 
 /**
@@ -47,17 +48,19 @@ inline void mettreAJourGps() {
  * @return Une structure DonneesGps prête à l'emploi.
  */
 inline DonneesGps obtenirDonneesGps() {
-    DonneesGps donnees;
+    DonneesGps donnees{};
     
     // 1. Récupération du nombre de satellites
     if (gps.satellites.isValid()) {
-        donnees.nbSatellites = gps.satellites.value();
+        const uint32_t satellites = gps.satellites.value();
+        donnees.nbSatellites = satellites > 255 ? 255 : satellites;
     } else {
         donnees.nbSatellites = 0;
     }
 
     // 2. Vérification de la validité du signal complet
     donnees.aSignalValide = gps.location.isValid() && gps.time.isValid();
+    donnees.caracteresRecus = gps.charsProcessed();
 
     // 3. Récupération et conversion de l'heure UTC en heure locale (France)
     if (gps.time.isValid()) {

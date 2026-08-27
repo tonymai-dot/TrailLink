@@ -3,21 +3,24 @@
 
 #include <Arduino.h>
 
-const int AFF_ETAT_NORMAL     = 0;
-const int AFF_ETAT_PRE_ALERTE = 1;
-const int AFF_ETAT_SOS        = 2;
+enum EtatAppareil : uint8_t {
+    AFF_ETAT_NORMAL = 0,
+    AFF_ETAT_PRE_ALERTE,
+    AFF_ETAT_SOS
+};
 
 struct DonneesAffichage {
-    float percentBatterie;    
-    int nbSatellites;         
-    String heure;             
-    bool estConnecteReseau;   
-    int etatLappareil;        
+    int percentBatterie;
+    uint8_t nbSatellites;
+    char heure[7];
+    bool gpsValide;
+    EtatAppareil etatLappareil;
 };
 
 bool initialiserAffichage();
 void rafraichirEcran(const DonneesAffichage& infos);
 void mettreEcranEnVeille();
+int obtenirPourcentageBatterie();
 
 
 #endif // AFFICHAGE_H
